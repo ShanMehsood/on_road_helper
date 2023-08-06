@@ -1,9 +1,10 @@
+import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:road_helper/emergency/emergency_screen.dart';
-import 'package:road_helper/mechanic/mechanic_screen.dart';
 import 'package:road_helper/sale_person/sale_person.dart';
+import '../mechanic/mechani_screen.dart';
 import '../services_seeker_detail/services_screen.dart';
 
 
@@ -17,22 +18,22 @@ class ServicesDetail extends StatefulWidget {
 }
 
 class _ServicesDetailState extends State<ServicesDetail> {
+  final databaseRef = FirebaseDatabase.instance.ref('History');
+  // This line creates a reference to the History
+  // node in the Realtime Database.
+  //The History node appears to be the parent node
+  // where service-related data is stored.
+
   final Set<Marker> _markers = {};
-  //private variable "_marker" use to hold all marker in the marker library in the googleMaps
-
   LatLng? _currentLocation;
-
-  LatLng get currentLocation => _currentLocation!;
-
   GoogleMapController? _mapController;
+  late String childKey; // Define the childKey variable
 
-  void _getCurrentLocation() async {
+  void _getCurrentLocation(String childKey) async {
     LocationPermission permission = await Geolocator.requestPermission();
 
-    if (permission == LocationPermission.denied ||
-        permission == LocationPermission.deniedForever) {
+    if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
       // Handle permission denied
-
       return;
     }
 
@@ -40,18 +41,26 @@ class _ServicesDetailState extends State<ServicesDetail> {
     LatLng currentLocation = LatLng(position.latitude, position.longitude);
     _mapController?.animateCamera(CameraUpdate.newLatLng(currentLocation));
     setState(() {
-      _currentLocation = position as LatLng?;
+      _currentLocation = currentLocation;
     });
     _markers.add(
       Marker(
         markerId: MarkerId('Current Location'),
-        position:LatLng(_currentLocation!.latitude,_currentLocation!.longitude),
+        position: currentLocation,
         icon: BitmapDescriptor.defaultMarker,
       ),
     );
 
-    // Update the map camera position
     _mapController?.animateCamera(CameraUpdate.newLatLng(_currentLocation!));
+
+    if (_currentLocation != null) {
+      DatabaseReference childRef = databaseRef.child('ServiceHistory').child(childKey); // Modify the child reference to include childKey
+
+      childRef.push().set({
+        'latitude': _currentLocation!.latitude,
+        'longitude': _currentLocation!.longitude,
+      });
+    }
   }
 
   @override
@@ -67,14 +76,13 @@ class _ServicesDetailState extends State<ServicesDetail> {
           SizedBox(height: 10),
           Container(
             height: 250,
-            width: MediaQuery
-                .of(context)
-                .size
-                .width,
+            // width: MediaQuery.of(context).size.width,
             decoration: BoxDecoration(
               color: Colors.deepOrange,
-              borderRadius: BorderRadius.only(topLeft: Radius.circular(40),
-                  bottomRight: Radius.circular(40)),
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(40),
+                bottomRight: Radius.circular(40),
+              ),
             ),
             padding: EdgeInsets.all(16),
             child: Column(
@@ -84,76 +92,70 @@ class _ServicesDetailState extends State<ServicesDetail> {
                   'images/logoroadhelper.png',
                   width: 200,
                   height: 200,
-
                 ),
               ],
             ),
           ),
           SizedBox(height: 60),
           Container(
-            //padding: EdgeInsets.all(4.0),
-            // height: 50,
-            // width: 50,
-            // Set the desired width of the InkWell button
             child: InkWellButton(
               icon: Icons.car_repair,
-              //image: AssetImage('images/services.png'),
               text: 'Services  ',
               onTap: () {
-                _getCurrentLocation();
-                Navigator.push(context,
-                    MaterialPageRoute(builder: (context) => ServiceScreen()));
+                childKey = "1";
+                _getCurrentLocation(childKey);
+                //After setting the childKey, the _getCurrentLocation
+                // function is called with the childKey as an argument.
+                // This function retrieves the current device location and stores
+                // it in the Realtime Database under the appropriate service type.
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => ServiceScreen()),
+                );
               },
             ),
           ),
           SizedBox(height: 40),
           Container(
-            // width: 50,
-            // height: 50,
-            // decoration: BoxDecoration(
-            //   borderRadius: BorderRadius.circular(10),
-            // ), // Set the desired width of the InkWell button
             child: InkWellButton(
               icon: Icons.handyman,
-
-              // image: AssetImage('images/mechanic.png'),
               text: 'Mechanic',
-
               onTap: () {
-                _getCurrentLocation();
-                Navigator.push(context,
-                    MaterialPageRoute(builder: (context) => MechanicScreen()));
+                childKey = "2";
+                _getCurrentLocation(childKey);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => MechanicScreen()),
+                );
               },
             ),
           ),
           SizedBox(height: 40),
           Container(
-            // width: 50,
-            // height: 50, // Set the desired width of the InkWell button
             child: InkWellButton(
               icon: Icons.shop_two,
-
-              //image: AssetImage('images/Saleperson.png'),
               text: 'Sale Person',
               onTap: () {
-                _getCurrentLocation();
-                Navigator.push(context,
-                    MaterialPageRoute(builder: (context) => SalePerson()));
+                childKey = "3";
+                _getCurrentLocation(childKey);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => SalePerson()),
+                );
               },
             ),
           ),
           SizedBox(height: 40),
           Container(
-            width: 30,
-            height: 50, // Set the desired width of the InkWell button
+
             child: InkWellButton(
               icon: Icons.emergency_rounded,
-              //image: AssetImage('images/emergency.png'),
               text: 'Emergency',
-              onTap: () {
-                _getCurrentLocation();
-                Navigator.push(context,
-                    MaterialPageRoute(builder: (context) => EmergencyScreen()));
+              onTap: () async {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => EmergencyScreen()),
+                );
               },
             ),
           ),
@@ -182,24 +184,20 @@ class InkWellButton extends StatelessWidget {
        return InkWell(
           onTap: onTap,
            child: Container(
-             width: 50,
-            height: 50,
-           decoration: BoxDecoration(
-             color: Colors.deepOrange,
-           border: Border.all(color: Colors.white),
-             borderRadius: BorderRadius.circular(40),
-        ),
-
-        child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-             // Image(
-                //image: image,),
-              SizedBox(width: 10),
-              Center(
-                child: Text(
-                  text,
-                  style: TextStyle(
+             height: 50,
+             decoration: BoxDecoration(
+               color: Colors.deepOrange,
+               border: Border.all(color: Colors.white),
+               borderRadius: BorderRadius.circular(40),
+             ),
+             child: Row(
+                 mainAxisAlignment: MainAxisAlignment.center,
+                 children: [
+                   SizedBox(width: 10),
+                   Center(
+                     child: Text(
+                    text,
+                    style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
                   ),

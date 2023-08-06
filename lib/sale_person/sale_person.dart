@@ -1,12 +1,12 @@
 import 'dart:math';
-import 'dart:ui';
-
+import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_phone_direct_caller/flutter_phone_direct_caller.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:loading_indicator/loading_indicator.dart';
+import 'package:road_helper/sale_person/sale_history.dart';
 
 class Person {
   final String name;
@@ -89,11 +89,77 @@ class _SalePersonState extends State<SalePerson> {
       appBar: AppBar(
         title: Center(child: Text('Sale Person')),
         backgroundColor: Colors.deepOrange,
+        actions: [
+          IconButton(
+            icon: Icon(Icons.history),
+            onPressed: () async {
+              setState(() {
+                _isLoading = true;
+                _isLoadingMessage =
+                    LocationFetchingMessage('Please wait, fetching history...');
+              });
+              DatabaseReference historyRef = FirebaseDatabase.instance.ref()
+                  .child("History").child("ServiceHistory")
+                  .child("3");
+
+              DatabaseEvent event = await historyRef.once();
+
+              if (event.snapshot.value != null &&
+                  event.snapshot.value is Map<dynamic, dynamic>) {
+                Map<dynamic, dynamic> snapshotValue = event.snapshot
+                    .value as Map<dynamic, dynamic>;
+
+                List<double> latitudes = [];
+                List<double> longitudes = [];
+
+                snapshotValue.forEach((key, value) {
+                  if (value is Map<dynamic, dynamic>) {
+                    double latitude = value['latitude'] ?? 0.0;
+                    double longitude = value['longitude'] ?? 0.0;
+
+                    if (kDebugMode) {
+                      print('Latitude: $latitude');
+                    }
+                    if (kDebugMode) {
+                      print('Longitude: $longitude');
+                    }
+
+                    latitudes.add(latitude);
+                    longitudes.add(longitude);
+                  }
+                });
+
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) =>
+                        SaleHistoryScreen(
+                          latitudes: latitudes,
+                          longitudes: longitudes,
+                        ),
+                  ),
+                ).then((value) {
+                  setState(() {
+                    _isLoading = false;
+                    _isLoadingMessage = LocationFetchingMessage('');
+
+                  });
+                });
+              } else {
+                setState(() {
+                  _isLoading = false;
+                  _isLoadingMessage = LocationFetchingMessage('');
+                });
+              }
+            },
+          )
+        ],
+
       ),
       body: Stack(
         children: [
           _isLoading
-              ? Center(
+              ? const Center(
             child: SizedBox(
               width: 50.0,
               height: 50.0,
@@ -126,7 +192,7 @@ class _SalePersonState extends State<SalePerson> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     if (_isLoading)
-                      SizedBox(
+                      const SizedBox(
                         width: 50.0,
                         height: 50.0,
                         child: LoadingIndicator(
@@ -135,7 +201,7 @@ class _SalePersonState extends State<SalePerson> {
                         ),
                       ),
                     if (_isLoading && _isLoadingMessage.message.isNotEmpty)
-                      SizedBox(height: 10),
+                      const SizedBox(height: 10),
                     if (_isLoadingMessage.message.isNotEmpty)
                       Container(
                         padding: EdgeInsets.all(16.0),
@@ -145,7 +211,7 @@ class _SalePersonState extends State<SalePerson> {
                         ),
                         child: Text(
                           _isLoadingMessage.message,
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
                             color: Colors.white,
@@ -210,7 +276,7 @@ class _SalePersonState extends State<SalePerson> {
                       child: Container(
                         height: MediaQuery.of(context).size.height,
                         width: MediaQuery.of(context).size.width,
-                        decoration: BoxDecoration(
+                        decoration: const BoxDecoration(
                           borderRadius: BorderRadius.only(
                             topLeft: Radius.circular(40),
                             topRight: Radius.circular(40),
@@ -221,32 +287,32 @@ class _SalePersonState extends State<SalePerson> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           crossAxisAlignment: CrossAxisAlignment.center,
                           children: [
-                            SizedBox(height: 70),
+                            const SizedBox(height: 70),
                             Text(
                               person.name,
-                              style: TextStyle(
+                              style: const TextStyle(
                                 fontSize: 30,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
-                            SizedBox(
+                            const SizedBox(
                               height: 30,
                             ),
                             Text(
                               'Distance: ${distance.toStringAsFixed(2)} Km',
-                              style: TextStyle(
+                              style: const TextStyle(
                                 fontSize: 20,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
-                            SizedBox(height: 30),
+                            const SizedBox(height: 30),
                             GestureDetector(
                               onTap: () {
                                 _makePhoneCall(person.phoneNumber);
                               },
                               child: Text(
                                 'Contact: ${person.phoneNumber}',
-                                style: TextStyle(
+                                style: const TextStyle(
                                   fontSize: 16,
                                   decoration: TextDecoration.underline,
                                   color: Colors.blue,

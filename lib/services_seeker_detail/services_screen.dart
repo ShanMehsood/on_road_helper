@@ -1,9 +1,13 @@
 import 'dart:math';
+import 'package:firebase_database/firebase_database.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_phone_direct_caller/flutter_phone_direct_caller.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:loading_indicator/loading_indicator.dart';
+import 'package:road_helper/services_seeker_detail/service_history.dart';
+
 
 class Person {
   final String name;
@@ -16,9 +20,12 @@ class Person {
     required this.position,
   });
 }
+//This class defines a data model for a person providing a service.
+// It includes properties for the person's name,
+// phoneNumber, and position (latitude and longitude) on the map.
 
 class ServiceScreen extends StatefulWidget {
-  ServiceScreen({Key? key}) : super(key: key);
+  const ServiceScreen({Key? key}) : super(key: key);
 
   @override
   _ServiceScreenState createState() => _ServiceScreenState();
@@ -26,11 +33,23 @@ class ServiceScreen extends StatefulWidget {
 
 class _ServiceScreenState extends State<ServiceScreen> {
   LocationFetchingMessage _isLoadingMessage = LocationFetchingMessage('');
+  //An instance of the LocationFetchingMessage class,
+  // which holds a message string related to the location fetching process.
+  // It is used to display loading messages when the user's
+  // location is being fetched.
   final Set<Marker> _markers = {};
+  //A set of Marker objects that represent the service providers
+  // and the user's current location on the Google Map.
   bool _isLoading = true;
   bool _permissionDenied = false;
 
   LatLng? _initialPosition;
+  //LatLng: LatLng is a class provided by the maps plugin used in Flutter to represent
+  // geographical coordinates, specifically latitude and longitude.
+  // It typically comes from a package like google_maps_flutter or similar map-related packages.
+  //The underscore _ at the beginning indicates that it's a private variable, meaning it can only
+  // be accessed within the current Dart file. Private variables are used to restrict access
+  // to the variable from outside code.
 
   final List<Person> _people = [
     Person(
@@ -44,7 +63,7 @@ class _ServiceScreenState extends State<ServiceScreen> {
       position: LatLng(33.997732000140694, 71.4890765296722),
     ),
     Person(
-      name: 'Name: Abdullah',
+      name: 'Name: Jamsheed Ustaz',
       phoneNumber: '03049798799',
       position: LatLng(34.028273034466665, 71.47572845118844),
     ),
@@ -70,22 +89,109 @@ class _ServiceScreenState extends State<ServiceScreen> {
     ),
     // Add more people with their names, phone numbers, and positions
   ];
+  //the final keyword is used to declare a variable whose value cannot be changed after
+  // it has been initialized. Once a final variable is assigned a value, it cannot be reassigned
+  // to a different value later in the code.
 
   GoogleMapController? _mapController;
+  //A reference to the GoogleMapController.
+  // It allows control over the Google Map widget,
+  // such as animating the camera or updating markers.
+
   Position? _currentPosition;
+
+  //object representing the user's current location.
+  // It is set when the user's location is fetched successfully.
 
   @override
   void initState() {
     super.initState();
     _getCurrentLocation();
+    //   An override of the initState method, which is called
+    //   when the widget is inserted into the tree.
+    //   It is used to fetch the
+    //   user's current location when the ServiceScreen
+    //   widget is first created.and its build one time not again and again.
   }
 
   @override
   Widget build(BuildContext context) {
+    final modalRoute = ModalRoute.of(context);
+    final navigator = Navigator.of(context);
+
+    if (modalRoute!.isCurrent && navigator.userGestureInProgress) {
+      _isLoading = false;
+      _isLoadingMessage = LocationFetchingMessage('');
+    }
     return Scaffold(
       appBar: AppBar(
-        title: Center(child: Text('Services Screen')),
+        title: Center(child: Text('Service Screen')),
         backgroundColor: Colors.deepOrange,
+        actions: [
+          IconButton(
+            icon: Icon(Icons.history),
+            onPressed: () async {
+              setState(() {
+                _isLoading = true;
+                _isLoadingMessage =
+                    LocationFetchingMessage('Please wait, fetching history...');
+              });
+              DatabaseReference historyRef = FirebaseDatabase.instance.ref()
+                  .child("History").child("ServiceHistory")
+                  .child("1");
+
+              DatabaseEvent event = await historyRef.once();
+
+              if (event.snapshot.value != null &&
+                  event.snapshot.value is Map<dynamic, dynamic>) {
+                Map<dynamic, dynamic> snapshotValue = event.snapshot
+                    .value as Map<dynamic, dynamic>;
+
+                List<double> latitudes = [];
+                List<double> longitudes = [];
+
+                snapshotValue.forEach((key, value) {
+                  if (value is Map<dynamic, dynamic>) {
+                    double latitude = value['latitude'] ?? 0.0;
+                    double longitude = value['longitude'] ?? 0.0;
+
+                    if (kDebugMode) {
+                      print('Latitude: $latitude');
+                    }
+                    if (kDebugMode) {
+                      print('Longitude: $longitude');
+                    }
+
+                    latitudes.add(latitude);
+                    longitudes.add(longitude);
+                  }
+                });
+
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) =>
+                        ServiceHistoryScreen(
+                          latitudes: latitudes,
+                          longitudes: longitudes,
+                        ),
+                  ),
+                ).then((value) {
+                  setState(() {
+                    _isLoading = false;
+                    _isLoadingMessage = LocationFetchingMessage('');
+
+                  });
+                });
+              } else {
+                setState(() {
+                  _isLoading = false;
+                   _isLoadingMessage = LocationFetchingMessage('');
+                  });
+                }
+              },
+          )
+        ],
       ),
       body: Stack(
         children: [
@@ -181,7 +287,7 @@ class _ServiceScreenState extends State<ServiceScreen> {
 
     for (Person person in _people) {
       BitmapDescriptor icon = await BitmapDescriptor.fromAssetImage(
-        ImageConfiguration(size: Size(1, 1)),
+        ImageConfiguration(size: Size(48, 48)),
         'images/sacservicespng.png',
       );
 
@@ -302,13 +408,18 @@ class _ServiceScreenState extends State<ServiceScreen> {
     });
   }
 
-
   void _makePhoneCall(String phoneNumber) async {
     await FlutterPhoneDirectCaller.callNumber(phoneNumber);
   }
 }
 
 class DistanceCalculator {
+  //class: A utility class that provides a static method,
+  // calculateDistance, to calculate the distance (in kilometers)
+  // between two sets of latitude and longitude coordinates using
+  // the haversine formula.
+
+
   static double calculateDistance(
       double startLatitude,
       double startLongitude,
